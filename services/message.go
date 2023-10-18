@@ -1,35 +1,35 @@
 package services
 
 import (
-	"errors"
 	"time"
 )
 
 type MessageType byte
 
 const (
-	TextMessageType    MessageType = '1'
-	PictureMessageType             = '2'
-	VideoMessageType               = '3'
-	SystemMessageType              = '4'
+	TextMessageType             MessageType = '1'
+	PictureMessageType                      = '2'
+	VideoMessageType                        = '3'
+	UserLoginSystemMessageType              = '4'
+	UserLogoutSystemMessageType             = '5'
 )
 
 type Message struct {
 	messageType MessageType
+	fromWho     string
 	data        []byte
 	timestamp   time.Time
 }
-
-var InValidMessageType = errors.New("消息类型解析失败")
 
 type MessageEncoder int
 
 var DefaultMessageEncoder MessageEncoder
 
 func (encoder *MessageEncoder) Encode(message *Message) ([]byte, error) {
-	data := make([]byte, len(message.data)+1)
+	data := make([]byte, len(message.data)+1+36) //1为消息类型长度， 36为uuid长度
 	data[0] = byte(message.messageType)
-	copy(message.data, data[1:])
+	copy(data[1:37], []byte(message.fromWho))
+	copy(data[37:], message.data)
 	return data, nil
 }
 
@@ -40,21 +40,39 @@ var DefaultMessageDecoder MessageDecoder
 func (decoder *MessageDecoder) Decode(data []byte) (*Message, error) {
 	message := &Message{
 		timestamp: time.Now(),
+		data:      make([]byte, len(data)-1-36), //1为消息类型长度， 36为uuid长度
 	}
 	messageType := MessageType(data[0])
 	switch messageType {
 	case TextMessageType:
 	case PictureMessageType:
 	case VideoMessageType:
-	case SystemMessageType:
-		{
-
-		}
+	case UserLoginSystemMessageType:
+	case UserLogoutSystemMessageType:
 	default:
 		return nil, InValidMessageType
 	}
 	message.messageType = messageType
-	copy(data[1:], message.data)
-
+	message.fromWho = string(data[1:37])
+	copy(message.data, data[37:])
 	return message, nil
+}
+
+func FormLogoutMsg(user *User) *Message {
+
+	return &Message{
+		messageType: UserLogoutSystemMessageType,
+		fromWho:     user.UserId,
+		data:        []byte(user.UserName),
+		timestamp:   time.Now(),
+	}
+}
+
+func FormLoginMsg(user *User) *Message {
+	return &Message{
+		messageType: UserLoginSystemMessageType,
+		fromWho:     user.UserId,
+		data:        []byte(user.UserName),
+		timestamp:   time.Now(),
+	}
 }
